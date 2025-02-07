@@ -3,7 +3,7 @@
 set -e  # Exit on any error
 
 # Update package list and install dependencies
-sudo apt update && sudo apt install -y zsh git curl
+sudo apt update && sudo apt install -y zsh git curl gpg
 
 # Install Oh My Zsh (unattended) for root if not already installed
 if [ ! -d "/root/.oh-my-zsh" ]; then
@@ -29,11 +29,11 @@ do
     [ ! -d "$dir" ] && sudo git clone --quiet "$repo" "$dir"
 done
 
-# Ensure global Powerlevel10k config exists
+# Ensure global Powerlevel10k config exists and is readable
 if [ ! -f "$ZSH_GLOBAL/.p10k.zsh" ]; then
     sudo curl -fsSL https://raw.githubusercontent.com/wpwebs/public/refs/heads/main/.p10k.zsh -o "$ZSH_GLOBAL/.p10k.zsh"
-    sudo chmod 644 "$ZSH_GLOBAL/.p10k.zsh"
 fi
+sudo chmod 644 "$ZSH_GLOBAL/.p10k.zsh"
 
 # Ensure .p10k.zsh is copied to /etc/skel/ for new users
 sudo cp "$ZSH_GLOBAL/.p10k.zsh" /etc/skel/.p10k.zsh
@@ -51,11 +51,13 @@ source /etc/zsh/custom/zsh-completions/zsh-completions.plugin.zsh
 source /etc/zsh/custom/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 source /etc/zsh/custom/powerlevel10k/powerlevel10k.zsh-theme
 
-# Load Powerlevel10k configuration
+# Ensure Powerlevel10k config is loaded
 if [[ -f $HOME/.p10k.zsh ]]; then
     source $HOME/.p10k.zsh
 elif [[ -f /etc/zsh/.p10k.zsh ]]; then
-    source /etc/zsh/.p10k.zsh
+    cp /etc/zsh/.p10k.zsh $HOME/.p10k.zsh
+    chmod 644 $HOME/.p10k.zsh
+    source $HOME/.p10k.zsh
 fi
 
 # Set default alias
@@ -76,14 +78,19 @@ for user in $(getent passwd | awk -F: '$3 >= 1000 {print $1}'); do
     HOME_DIR=$(eval echo "~$user")
     
     # Skip users with no home directory
-    if [ "$HOME_DIR" = "/home/nobody" ] || [ ! -d "$HOME_DIR" ]; then
+    if [ ! -d "$HOME_DIR" ]; then
         echo "Skipping user: $user (No valid home directory)"
         continue
     fi
 
     sudo chsh -s "$(which zsh)" "$user"
-    sudo cp "$ZSH_GLOBAL/.p10k.zsh" "$HOME_DIR/.p10k.zsh"
-    sudo chown "$user":"$user" "$HOME_DIR/.p10k.zsh"
+
+    # Ensure the user has the Powerlevel10k config
+    if [ ! -f "$HOME_DIR/.p10k.zsh" ]; then
+        sudo cp "$ZSH_GLOBAL/.p10k.zsh" "$HOME_DIR/.p10k.zsh"
+        sudo chmod 644 "$HOME_DIR/.p10k.zsh"
+        sudo chown "$user":"$user" "$HOME_DIR/.p10k.zsh"
+    fi
 done
 
 # Set Zsh as the default shell for new users and root
