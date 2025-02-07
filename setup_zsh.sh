@@ -73,7 +73,7 @@ done
 P10K_GLOBAL="${ZSH_GLOBAL}/.p10k.zsh"
 if [ ! -f "$P10K_GLOBAL" ]; then
     log_info "Downloading global Powerlevel10k configuration..."
-    $SUDO curl -fsSL https://raw.githubusercontent.com/wpwebs/public/refs/heads/main/.p10k.zsh -o "$P10K_GLOBAL"
+    $SUDO curl -fsSL https://raw.githubusercontent.com/wpwebs/public/main/.p10k.zsh -o "$P10K_GLOBAL"
 fi
 $SUDO chmod 644 "$P10K_GLOBAL"
 
@@ -150,8 +150,11 @@ done < <(getent passwd)
 # -----------------------------------------------------------------------------
 # Set Zsh as the default shell for root
 # -----------------------------------------------------------------------------
-log_info "Setting Zsh as the default shell for root..."
-$SUDO usermod --shell "$(command -v zsh)" root
+log_info "Setting Zsh as the default shell for all existing users..."
+for user in $(awk -F: '$3 >= 1000 {print $1}' /etc/passwd); do
+    $SUDO sudo chsh -s $(command -v zsh) $user
+done
+
 
 # -----------------------------------------------------------------------------
 # Restart shell to apply changes
