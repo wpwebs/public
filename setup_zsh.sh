@@ -150,11 +150,10 @@ done < <(getent passwd)
 # -----------------------------------------------------------------------------
 # Set Zsh as the default shell for all existing users
 # -----------------------------------------------------------------------------
-ZSH_PATH=$(command -v zsh)
 for special_user in root debian; do
     if id "$special_user" &>/dev/null; then
-        log_info "Changing shell for special user '$special_user' to $ZSH_PATH"
-        $SUDO chsh -s "$ZSH_PATH" "$special_user"
+        log_info "Set Zsh as the default shell for '$special_user'"
+        $SUDO chsh -s $(which zsh) "$special_user"
     else
         log_warn "User '$special_user' does not exist. Skipping..."
     fi
