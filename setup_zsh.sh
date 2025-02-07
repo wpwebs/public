@@ -148,11 +148,11 @@ while IFS=: read -r username _ uid _ homedir _; do
 done < <(getent passwd)
 
 # -----------------------------------------------------------------------------
-# Set Zsh as the default shell for root
+# Set Zsh as the default shell for all existing users
 # -----------------------------------------------------------------------------
 log_info "Setting Zsh as the default shell for all existing users..."
 for user in $(awk -F: '$3 >= 1000 {print $1}' /etc/passwd); do
-    $SUDO sudo chsh -s $(command -v zsh) $user
+    $SUDO chsh -s $(command -v zsh) $user
 done
 
 
