@@ -7,7 +7,7 @@ sudo apt update && sudo apt install -y zsh git curl gpg
 
 # Install Oh My Zsh (unattended) for root if not already installed
 if [ ! -d "/root/.oh-my-zsh" ]; then
-    sudo bash -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" --unattended"
+    sudo bash -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh) --unattended"
 fi
 
 # Define global Zsh configuration directory
