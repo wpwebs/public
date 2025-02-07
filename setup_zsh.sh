@@ -3,7 +3,7 @@
 set -e  # Exit on any error
 
 # Update package list and install dependencies
-sudo apt update && sudo apt install -y zsh git curl gpg
+sudo apt update && sudo apt install -y zsh git curl
 
 # Install Oh My Zsh (unattended) for root if not already installed
 if [ ! -d "/root/.oh-my-zsh" ]; then
@@ -73,9 +73,12 @@ fi
 
 # Set Zsh as the default shell for all existing users (excluding system users)
 for user in $(getent passwd | awk -F: '$3 >= 1000 {print $1}'); do
-    sudo chsh -s "$(which zsh)" "$user"
-    sudo cp "$ZSH_GLOBAL/.p10k.zsh" "/home/$user/.p10k.zsh"
-    sudo chown "$user":"$user" "/home/$user/.p10k.zsh"
+    HOME_DIR=$(eval echo "~$user")
+    if [ -d "$HOME_DIR" ]; then
+        sudo chsh -s "$(which zsh)" "$user"
+        sudo cp "$ZSH_GLOBAL/.p10k.zsh" "$HOME_DIR/.p10k.zsh"
+        sudo chown "$user":"$user" "$HOME_DIR/.p10k.zsh"
+    fi
 done
 
 # Set Zsh as the default shell for new users and root
