@@ -1,13 +1,13 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e  # Exit on any error
 
 # Update package list and install dependencies
-sudo apt update && sudo apt install -y zsh git curl 
+sudo apt update && sudo apt install -y zsh git curl gpg
 
 # Install Oh My Zsh (unattended) for root if not already installed
 if [ ! -d "/root/.oh-my-zsh" ]; then
-    sudo sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" --unattended"
+    sudo bash -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" --unattended"
 fi
 
 # Define global Zsh configuration directory
@@ -26,7 +26,9 @@ for repo in \
     "https://github.com/romkatv/powerlevel10k"
 do
     dir="${ZSH_CUSTOM}/$(basename $repo)"
-    [ ! -d "$dir" ] && sudo git clone --quiet "$repo" "$dir"
+    if [ ! -d "$dir" ]; then
+        sudo git clone --quiet "$repo" "$dir"
+    fi
 done
 
 # Ensure global Powerlevel10k config exists and is readable
