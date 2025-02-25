@@ -58,4 +58,7 @@ fi
 log "Virtual environment setup is complete in $venv_dir."
 log "To activate, run: source $venv_dir/bin/activate"
 
+source $venv_dir/bin/activate
+$SHELL
+
 exit 0
