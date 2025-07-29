@@ -117,9 +117,17 @@ configure_user_files() {
     done
     local plugins_string="${plugin_names[*]}" # Convert array to space-separated string
 
-    # Set the theme and plugins in .zshrc
+    # Set the theme and activate all plugins in .zshrc
     sudo -u "$user" sed -i 's/^ZSH_THEME=.*/ZSH_THEME="powerlevel10k\/powerlevel10k"/' "$zshrc_file"
     sudo -u "$user" sed -i "s/^plugins=(.*/plugins=(${plugins_string})/" "$zshrc_file"
+
+    # Add sourcing for .p10k.zsh to the end of .zshrc if not already present
+    # Note: The p10k theme sources this automatically, but we add it for explicitness.
+    local p10k_source_line='[[ -s "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"'
+    if ! sudo -u "$user" grep -qF 'source "$HOME/.p10k.zsh"' "$zshrc_file"; then
+        log_info "Adding Powerlevel10k source line to ${user}'s .zshrc"
+        echo -e "\n# To customize prompt, run 'p10k configure' or edit ~/.p10k.zsh.\n${p10k_source_line}" | sudo -u "$user" tee -a "$zshrc_file" > /dev/null
+    fi
 
     # Download .p10k.zsh if it doesn't exist
     if [[ ! -f "$p10k_file" ]]; then
@@ -128,7 +136,10 @@ configure_user_files() {
     fi
     
     # Set correct ownership for all config files
-    sudo chown "${user}:${user}" "${home_dir}/.zshrc" "${home_dir}/.p10k.zsh"
+    sudo chown "${user}:${user}" "${home_dir}/.zshrc"
+    if [[ -f "$p10k_file" ]]; then
+        sudo chown "${user}:${user}" "$p10k_file"
+    fi
 }
 
 # Main function to process a single user.
