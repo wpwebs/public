@@ -150,7 +150,7 @@ done < <(getent passwd)
 # -----------------------------------------------------------------------------
 # Set Zsh as the default shell for all existing users
 # -----------------------------------------------------------------------------
-for special_user in root debian; do
+for special_user in root debian dev; do
     if id "$special_user" &>/dev/null; then
         log_info "Set Zsh as the default shell for '$special_user'"
         $SUDO chsh -s $(which zsh) "$special_user"
@@ -163,5 +163,5 @@ done
 # -----------------------------------------------------------------------------
 # Restart shell to apply changes
 # -----------------------------------------------------------------------------
-log_info "Switching to Zsh..."
-exec zsh
+# log_info "Switching to Zsh..."
+# exec zsh
