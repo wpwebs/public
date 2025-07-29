@@ -1,167 +1,204 @@
 #!/bin/bash
+
+# =============================================================================
+#
+# Oh My Zsh & Powerlevel10k Installer
+#
+# Description: This script installs and configures Oh My Zsh, Powerlevel10k,
+#              and essential plugins for root and all regular users (UID >= 1000).
+#
+# Usage:       sudo ./setup_zsh.sh
+#
+# =============================================================================
+
 set -euo pipefail
-IFS=$'\n\t'
 
 # -----------------------------------------------------------------------------
-# Logging functions
+# Configuration
 # -----------------------------------------------------------------------------
-log_info()  { echo -e "\033[1;32m[INFO]\033[0m $1"; }
-log_warn()  { echo -e "\033[1;33m[WARN]\033[0m $1"; }
-log_error() { echo -e "\033[1;31m[ERROR]\033[0m $1"; }
-
-# -----------------------------------------------------------------------------
-# Determine if sudo is needed
-# -----------------------------------------------------------------------------
-if [[ $EUID -ne 0 ]]; then
-    SUDO="sudo"
-else
-    SUDO=""
-fi
-
-# -----------------------------------------------------------------------------
-# Update package list and install dependencies
-# -----------------------------------------------------------------------------
-log_info "Updating package list and installing dependencies..."
-$SUDO apt update
-$SUDO apt install -y zsh git curl
-
-# -----------------------------------------------------------------------------
-# Install Oh My Zsh for root (unattended) if not already installed
-# -----------------------------------------------------------------------------
-if [ ! -d "/root/.oh-my-zsh" ]; then
-    log_info "Installing Oh My Zsh for root..."
-    $SUDO bash -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh) --unattended"
-else
-    log_info "Oh My Zsh is already installed for root."
-fi
-
-# -----------------------------------------------------------------------------
-# Set up global Zsh configuration directories
-# -----------------------------------------------------------------------------
-ZSH_GLOBAL="/etc/zsh"
-ZSH_CUSTOM="${ZSH_GLOBAL}/custom"
-
-log_info "Creating global Zsh directories at ${ZSH_CUSTOM}..."
-$SUDO mkdir -p "$ZSH_CUSTOM"
-$SUDO chmod -R 755 "$ZSH_GLOBAL"
-
-# -----------------------------------------------------------------------------
-# Clone essential plugins and themes (if not already cloned)
-# -----------------------------------------------------------------------------
-plugins=(
+# Add plugin repository URLs to this array.
+# The script will automatically derive the plugin name from the URL.
+readonly PLUGINS=(
     "https://github.com/zsh-users/zsh-autosuggestions"
     "https://github.com/zsh-users/zsh-completions"
     "https://github.com/zsh-users/zsh-syntax-highlighting"
-    "https://github.com/romkatv/powerlevel10k"
 )
 
-log_info "Cloning essential plugins and themes..."
-for repo in "${plugins[@]}"; do
-    repo_name=$(basename "$repo")
-    target_dir="${ZSH_CUSTOM}/${repo_name}"
-    if [ ! -d "$target_dir" ]; then
-        log_info "Cloning ${repo} into ${target_dir}..."
-        $SUDO git clone --quiet "$repo" "$target_dir"
-    else
-        log_info "${repo_name} already exists. Skipping clone."
+# Powerlevel10k theme repository.
+readonly P10K_REPO="https://github.com/romkatv/powerlevel10k.git"
+
+# URL for the default .p10k.zsh configuration file.
+readonly P10K_CONFIG_URL="https://raw.githubusercontent.com/wpwebs/public/main/.p10k.zsh"
+
+# -----------------------------------------------------------------------------
+# Logging and Utility Functions
+# -----------------------------------------------------------------------------
+log_info()  { echo -e "\033[1;32m[INFO]\033[0m $1"; }
+log_warn()  { echo -e "\033[1;33m[WARN]\033[0m $1"; }
+log_error() { echo -e "\033[1;31m[ERROR]\033[0m $1"; exit 1; }
+
+# Function to check if a command exists.
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# -----------------------------------------------------------------------------
+# Core Functions
+# -----------------------------------------------------------------------------
+
+# Install package dependencies required for the script.
+install_dependencies() {
+    log_info "Updating package list and installing dependencies..."
+    apt-get update
+    apt-get install -y zsh git curl
+}
+
+# Install Oh My Zsh for a specific user if it's not already installed.
+# Arguments:
+#   $1: Username
+#   $2: User's home directory
+install_oh_my_zsh() {
+    local user="$1"
+    local home_dir="$2"
+    local zsh_dir="${home_dir}/.oh-my-zsh"
+
+    if [[ -d "$zsh_dir" ]]; then
+        log_info "Oh My Zsh is already installed for ${user}."
+        return
     fi
-done
 
-# -----------------------------------------------------------------------------
-# Download global Powerlevel10k configuration if needed
-# -----------------------------------------------------------------------------
-P10K_GLOBAL="${ZSH_GLOBAL}/.p10k.zsh"
-if [ ! -f "$P10K_GLOBAL" ]; then
-    log_info "Downloading global Powerlevel10k configuration..."
-    $SUDO curl -fsSL https://raw.githubusercontent.com/wpwebs/public/main/.p10k.zsh -o "$P10K_GLOBAL"
-fi
-$SUDO chmod 644 "$P10K_GLOBAL"
+    log_info "Installing Oh My Zsh for ${user}..."
+    sudo -u "$user" git clone --quiet https://github.com/ohmyzsh/ohmyzsh.git "$zsh_dir"
+    sudo -u "$user" cp "${zsh_dir}/templates/zshrc.zsh-template" "${home_dir}/.zshrc"
+}
 
-# Copy .p10k.zsh to /etc/skel so that new users get it
-log_info "Copying global .p10k.zsh to /etc/skel..."
-$SUDO cp "$P10K_GLOBAL" /etc/skel/.p10k.zsh
+# Install Zsh plugins and the Powerlevel10k theme for a user.
+# Arguments:
+#   $1: Username
+#   $2: User's home directory
+install_plugins_and_theme() {
+    local user="$1"
+    local home_dir="$2"
+    local custom_dir="${home_dir}/.oh-my-zsh/custom"
 
-# -----------------------------------------------------------------------------
-# Create default .zshrc for new users in /etc/skel
-# -----------------------------------------------------------------------------
-log_info "Creating default .zshrc in /etc/skel..."
-$SUDO tee /etc/skel/.zshrc > /dev/null << 'EOF'
-# Load Oh My Zsh
-export ZSH="$HOME/.oh-my-zsh"
-ZSH_THEME="powerlevel10k/powerlevel10k"
+    # Install Powerlevel10k
+    local p10k_dir="${custom_dir}/themes/powerlevel10k"
+    if [[ ! -d "$p10k_dir" ]]; then
+        log_info "Cloning Powerlevel10k for ${user}..."
+        sudo -u "$user" git clone --quiet --depth=1 "$P10K_REPO" "$p10k_dir"
+    fi
 
-# Enable Powerlevel10k instant prompt
-if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
-  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
-fi
-
-# Load global plugins and theme
-source /etc/zsh/custom/zsh-autosuggestions/zsh-autosuggestions.zsh
-source /etc/zsh/custom/zsh-completions/zsh-completions.plugin.zsh
-source /etc/zsh/custom/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-source /etc/zsh/custom/powerlevel10k/powerlevel10k.zsh-theme
-
-# Ensure Powerlevel10k config is loaded
-if [[ -f "$HOME/.p10k.zsh" ]]; then
-    source "$HOME/.p10k.zsh"
-elif [[ -f /etc/zsh/.p10k.zsh ]]; then
-    cp /etc/zsh/.p10k.zsh "$HOME/.p10k.zsh"
-    chmod 644 "$HOME/.p10k.zsh"
-    source "$HOME/.p10k.zsh"
-fi
-
-# Disable Powerlevel10k setup wizard
-echo 'POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true' >> ~/.zshrc
-
-# Set default alias
-alias ll="ls -lah"
-EOF
-
-# Ensure /etc/skel/.config exists
-$SUDO mkdir -p /etc/skel/.config
-
-# -----------------------------------------------------------------------------
-# Update existing users (UID ≥ 1000) to use Zsh and set up their config files
-# -----------------------------------------------------------------------------
-log_info "Configuring existing users..."
-
-# Read /etc/passwd line by line
-while IFS=: read -r username _ uid _ homedir _; do
-    # Only update users with UID ≥ 1000 and a valid home directory
-    if [ "$uid" -ge 1000 ] && [ -d "$homedir" ]; then
-        log_info "Configuring user: $username"
-        $SUDO chsh -s "$(command -v zsh)" "$username"
-
-        # Copy .p10k.zsh if missing
-        if [ ! -f "${homedir}/.p10k.zsh" ]; then
-            $SUDO cp "$P10K_GLOBAL" "${homedir}/.p10k.zsh"
-            $SUDO chmod 644 "${homedir}/.p10k.zsh"
-            $SUDO chown "$username":"$username" "${homedir}/.p10k.zsh"
+    # Install other plugins
+    for plugin_repo in "${PLUGINS[@]}"; do
+        local plugin_name=$(basename "$plugin_repo")
+        local plugin_dir="${custom_dir}/plugins/${plugin_name}"
+        if [[ ! -d "$plugin_dir" ]]; then
+            log_info "Cloning plugin ${plugin_name} for ${user}..."
+            sudo -u "$user" git clone --quiet "$plugin_repo" "$plugin_dir"
         fi
+    done
+}
 
-        # Copy .zshrc if missing
-        if [ ! -f "${homedir}/.zshrc" ]; then
-            $SUDO cp "/etc/skel/.zshrc" "${homedir}/.zshrc"
-            $SUDO chown "$username":"$username" "${homedir}/.zshrc"
-        fi
+# Configure .zshrc and .p10k.zsh for a user.
+# Arguments:
+#   $1: Username
+#   $2: User's home directory
+configure_user_files() {
+    local user="$1"
+    local home_dir="$2"
+    local zshrc_file="${home_dir}/.zshrc"
+    local p10k_file="${home_dir}/.p10k.zsh"
+
+    # Configure .zshrc
+    log_info "Configuring .zshrc for ${user}..."
+    local plugin_names=("git") # Start with the 'git' plugin by default
+    for plugin_repo in "${PLUGINS[@]}"; do
+        plugin_names+=("$(basename "$plugin_repo")")
+    done
+    local plugins_string="${plugin_names[*]}" # Convert array to space-separated string
+
+    # Set the theme and plugins in .zshrc
+    sudo -u "$user" sed -i 's/^ZSH_THEME=.*/ZSH_THEME="powerlevel10k\/powerlevel10k"/' "$zshrc_file"
+    sudo -u "$user" sed -i "s/^plugins=(.*/plugins=(${plugins_string})/" "$zshrc_file"
+
+    # Download .p10k.zsh if it doesn't exist
+    if [[ ! -f "$p10k_file" ]]; then
+        log_info "Downloading default .p10k.zsh for ${user}..."
+        sudo -u "$user" curl -fsSL "$P10K_CONFIG_URL" -o "$p10k_file"
     fi
-done < <(getent passwd)
+    
+    # Set correct ownership for all config files
+    sudo chown "${user}:${user}" "${home_dir}/.zshrc" "${home_dir}/.p10k.zsh"
+}
 
-# -----------------------------------------------------------------------------
-# Set Zsh as the default shell for all existing users
-# -----------------------------------------------------------------------------
-for special_user in root debian dev; do
-    if id "$special_user" &>/dev/null; then
-        log_info "Set Zsh as the default shell for '$special_user'"
-        $SUDO chsh -s $(which zsh) "$special_user"
+# Main function to process a single user.
+# Arguments:
+#   $1: Username
+configure_user() {
+    local user="$1"
+    local home_dir
+    home_dir=$(eval echo "~${user}") # Safely get home directory
+
+    if [[ ! -d "$home_dir" ]]; then
+        log_warn "Home directory for user '${user}' not found. Skipping."
+        return
+    fi
+    
+    log_info "--- Configuring user: ${user} ---"
+
+    # Set Zsh as default shell if not already set
+    if [[ "$(getent passwd "$user" | cut -d: -f7)" != "$(command -v zsh)" ]]; then
+        log_info "Setting Zsh as default shell for ${user}."
+        chsh -s "$(command -v zsh)" "$user"
     else
-        log_warn "User '$special_user' does not exist. Skipping..."
+        log_info "Zsh is already the default shell for ${user}."
     fi
-done
 
+    install_oh_my_zsh "$user" "$home_dir"
+    install_plugins_and_theme "$user" "$home_dir"
+    configure_user_files "$user" "$home_dir"
+
+    log_info "--- Finished configuring ${user} ---"
+}
 
 # -----------------------------------------------------------------------------
-# Restart shell to apply changes
+# Main Execution
 # -----------------------------------------------------------------------------
-# log_info "Switching to Zsh..."
-# exec zsh
+main() {
+    # Ensure the script is run as root
+    if [[ $EUID -ne 0 ]]; then
+        log_error "This script must be run as root. Please use sudo."
+    fi
+
+    # Check for required commands
+    for cmd in git curl getent; do
+        if ! command_exists "$cmd"; then
+            log_error "Command '${cmd}' not found. Please install it."
+        fi
+    done
+
+    install_dependencies
+
+    # Find all users to configure (root + users with UID >= 1000)
+    local users_to_configure=()
+    users_to_configure+=("root")
+    while IFS=: read -r username _ uid _ _ _; do
+        if [[ "$uid" -ge 1000 ]]; then
+            users_to_configure+=("$username")
+        fi
+    done < <(getent passwd)
+
+    # Process each user
+    for user in "${users_to_configure[@]}"; do
+        if id "$user" &>/dev/null; then
+            configure_user "$user"
+        else
+            log_warn "User '${user}' does not exist. Skipping."
+        fi
+    done
+
+    log_info "✅ All users have been configured successfully."
+}
+
+# Run the main function
+main
